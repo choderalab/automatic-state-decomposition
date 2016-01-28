@@ -1,0 +1,202 @@
+Algorithm for constructing an automatic state decomposition.
+
+================================================================================
+AUTHORS
+================================================================================
+
+The following people contributed to this code:
+
+John D. Chodera, UCSF <jchodera@gmail.com> 
+
+================================================================================
+COPYRIGHT
+================================================================================
+
+Copyright (c) 2006 The Regents of the University of California.  All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under the terms of
+the GNU General Public License as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+ 
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+ 
+You should have received a copy of the GNU General Public License along with this program;
+if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+Boston, MA  02110-1301, USA.
+
+================================================================================
+REFERENCE
+================================================================================
+
+This code implements the algorithm described in:
+
+Chodera JD, Singhal N, Pitera JW, Pande VS, Dill KA, and Swope WC. 
+Automatic discovery of metastable states for the construction of Markov models of macromolecular conformational dynamics.
+To be submitted to J. Phys. Chem. B, 2006.
+
+================================================================================
+DEPENDENCIES
+================================================================================
+
+The code currently requires several libraries to link against:
+
+* The netCDF libraries must be installed to read AMBER format netCDF trajectories.
+
+http://www.unidata.ucar.edu/software/netcdf/
+
+* LAPACK must be installed, and compiled to be thread-safe if OpenMP is used.
+
+http://www.netlib.org/lapack/
+
+If these libraries are not thread-safe, OpenMP parallelism cannot be used.
+
+On Opteron platforms, AMD provides a tuned library that provides BLAS and LAPACK in the ACML:
+
+http://developer.amd.com/acml.aspx
+
+* xmlf90, a Fortran 90 XML parser, must be installed.  It can be downloaded from:
+
+http://lcdx00.wm.lc.ehu.es/ag/xml/
+
+================================================================================
+INSTALLATION
+================================================================================
+
+A Fortran 95 capable compiler must be used.  
+
+The Makefile (located in src/) is currently set up to use the Intel Fortran Compiler 9 with OpenMP ("ifort"), but g95 has been found to work as well.
+
+Edit the Makefile in src/ to ensure that the variables are set to point to where you have the libraries for the dependencies above installed.
+Also make sure the compiler and flags are set appropriately.
+
+cd src/
+make
+
+================================================================================
+USAGE
+================================================================================
+
+To run the program use:
+
+decompose control.xml
+
+where 'control.xml' is the name of the XML control file for the particular system of interest.
+This control file contains information about where to read the trajectory data, how to split and merge the states, what output to write, and where to put it.
+This file is documented below, and examples are provided in the datasets found in the examples/ subdirectories.
+
+NOTE: You may need to increase your stack limit by 'ulimit -s unlimited' for bash or 'limit stacksize unlimited' for tcsh.
+
+================================================================================
+INPUT TRAJECTORY DATA
+================================================================================
+
+Trajectories currently must be in the AMBER netCDF format, documented here:
+
+http://amber.scripps.edu/netcdf/nctraj.html
+
+Trajectories may additionally have (unnormalized) log weights, in case they were conducted with some sort of biased sampling.
+
+The trajectory-index file has the following format:
+
+write(iunit,'(F16.8,1X,A)') log_weight, netcdf_trajectory_filename
+
+e.g.
+
+      0.00000000 trajectories/trajectory-000001
+      0.00000000 trajectories/trajectory-000002
+      0.00000000 trajectories/trajectory-000003
+      0.00000000 trajectories/trajectory-000004
+      0.00000000 trajectories/trajectory-000005
+      0.00000000 trajectories/trajectory-000006
+      0.00000000 trajectories/trajectory-000007
+      0.00000000 trajectories/trajectory-000008
+      0.00000000 trajectories/trajectory-000009
+      0.00000000 trajectories/trajectory-000010
+      0.00000000 trajectories/trajectory-000011
+      0.00000000 trajectories/trajectory-000012
+      0.00000000 trajectories/trajectory-000013
+
+Each line specifies a log weight (which ie exponentiated to obtain the unnormalized weight of that trajectory) followed by a filename of the netCDF trajectory.  Spaces in path names may cause problems.
+
+================================================================================
+CONTROL FILE
+================================================================================
+
+The control file is an XML file which has the format:
+
+<control>
+  ...
+</control>
+
+Comments are permitted as long as they are enclosed in <!-- ... --> constructs.
+
+A number of elements may appear within the <control>...</control> structure, nearly all of which are optional, with sensible guesses made in their absence.
+These options are described by category below.
+
+GLOBAL OPTIONS AND INPUT
+
+Global options control the input and iteration.
+
+ <!-- GLOBAL OPTIONS -->
+
+ <!-- A descriptive title of the dataset. -->
+ <title>trpzip2 trajectories at 425 K</title>
+
+ <!-- The name of the reference PDB file, from which atom names and ordering are obtained. -->
+ <reference_pdb_filename>reference.pdb</reference_pdb_filename>
+
+ <!-- The trajectory index file. -->
+ <trajectory_index_filename>trajectory-index</trajectory_index_filename>
+
+ <!-- The name of the output directory. -->
+ <output_directory>output</output_directory>
+
+ <!-- Number of iterations to perform -->
+ <niterations>10</niterations>
+
+ <!-- Iteration to start from, and initial macrostate assignments, if desired. -->
+ <!-- If not specified, will initialize from all snapshots in one state. -->
+ <!-- This example resumes from the end of iteration 1. -->
+ <!-- <initialize iteration="2" initial_stateassignments="output/1.stateassignments-merged" /> -->
+
+SPLITTING
+
+Splitting is performed by K-medoid clustering using the fast RMSD algorithm of D. L. Theobald [1].
+This algorithm is at least an order of magnitude faster than the algorithm of W. Kabsch [2].
+
+[1]	D. L. Theobald. Rapid calculation of RMSDs using a quaternion-based characteristic polynomial. Acta Cryst., A61:478-480, 2005.
+
+[2]	W. Kabsch. A solution for the best rotation to relate two sets of vectors. Acta Cryst., A32:922-923, 1976; W. Kabsch. A discussion of the solution for the best rotation to relate two sets of vectors. Acta Cryst., A34:827-828, 1978.
+
+
+WRITING PDB FILES OF STATES
+
+To write PDB files for each split and/or merged state, include the tags
+
+<write_split_pdbs nmodels="30" />
+
+and/or 
+
+<write_merged_pdbs nmodels="30" />
+
+in your control XML file.  The number associated with the 'nmodels' attribute controls how many models are written from each state..
+The first model written is always the state representative, and the rest are randomly chosen from within each state.
+If there are fewer state members than requested models, all members are written to the PDB file.
+The state representative is first aligned to the reference PDB structure provided, and then all state members are aligned to this representative.
+By default, the backbone atoms are used in this alignment procedure, though atoms of choice can be overridden by adding a space-separated list of atom indices in a <ls_align_atomindices> pair of tags.
+
+
+SPLITTING AND LUMPING FILES
+
+A series of files, names [iteration].split and [iteration].lump, are written to indicate which states are split and lumped, allowing the entire history of the state decomposition to be followed.
+
+For both splitting and lumping, the format is:
+
+[lumped state] [splitstate1] [splitstate2] ... [splitstateN]
+
+Note that, for splitting, the initial state before lumping is on the left and the states it was subsequently split into are on the right.
+For lumping, it is the opposite: The initial states that formed the lumped state are on the right, and the lumped state is on the left.
+
+

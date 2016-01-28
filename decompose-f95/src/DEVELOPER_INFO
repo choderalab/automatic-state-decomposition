@@ -1,0 +1,40 @@
+This document contains a guide for developers modifying this code.
+
+* decompose.f90
+
+This file contains the actual state decomposition algorithm.  Any modifications to the behaviour of the algorithm will probably be made here.  It contains a decent amount of code for initialization (loading trajectories, determining atom indices to use for distance calculations, and initial state assignments), as well as the splitting and lumping routines.
+
+* precision.f90
+
+Some useful precision abbreviations for floating-point and integer datatypes.
+
+* utilities.f90
+
+General utility functions, such as for generating random numbers.
+
+* transitionmatrix.f90
+
+Functions for computing transition matrices, timescales, and bootstrap analysis.
+
+* pdbio.f90
+
+Functions for reading and writing multi-model PDB files.
+
+* netcdfio.f90
+
+Functions for reading (and eventually writing?) AMBER format netCDF trajectories.
+
+* theobald_rmsd.f90
+
+An implementation of the extremely fast Theobald quaternion-based characteristic polynomial (QCP) method of computing RMSDs.
+
+* kabsch_rmsd.f90
+
+An implementation of the Kabsch eigensolver-based RMSD calculation algorithm.
+
+* eispack.f90
+
+A freely-available library (from John Burkardt) for eigenvalue decomposition.
+Source is also available here:
+http://www.csit.fsu.edu/~burkardt/f_src/eispack/eispack.html
+

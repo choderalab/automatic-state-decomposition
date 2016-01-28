@@ -1,0 +1,94 @@
+<!-- XML control file for automatic state decomposition. -->
+<control>
+
+ <!-- GLOBAL OPTIONS -->
+
+ <!-- A descriptive title of the dataset. -->
+ <title>Alanine dipeptide replica-exchange data from 425 K.</title>
+
+ <!-- The name of the reference PDB file, from which atom names and ordering are obtained. -->
+ <reference_pdb_filename>reference.pdb</reference_pdb_filename>
+
+ <!-- The trajectory index file. -->
+ <!-- <trajectory_index_filename>trajectory-index</trajectory_index_filename> -->
+ <trajectory_index_filename>trajectory-index</trajectory_index_filename>
+
+ <!-- The name of the output directory. -->
+ <output_directory>output</output_directory>
+
+ <!-- Number of iterations to perform -->
+ <niterations>10</niterations>
+
+ <!-- SPLITTING OPTIONS -->
+
+ <!-- RMSD mode for first iteration -->
+ <!-- Options are: backbone, ca, allatom, heavyatom -->
+ <rmsd_mode_first_iteration>backbone</rmsd_mode_first_iteration>
+
+ <!-- RMSD mode for subsequent iterations -->
+ <rmsd_mode_subsequent_iterations>heavyatom</rmsd_mode_subsequent_iterations>
+
+ <!-- Target size (in number of snapshots) for microstates -->
+ <target_microstate_size>100</target_microstate_size>
+
+ <!-- Fraction of snapshots to use in refining splitting. -->
+ <kmedoid_fraction>1.0</kmedoid_fraction>
+
+ <!-- Number of k-medoid iterations to use for generator refinement (or 0 if no refinement desired). -->
+ <kmedoid_iterations>0</kmedoid_iterations>
+
+ <!-- Maximum number of microstates to split each macrostate into, or -1 or not specified if no limit. -->
+ <max_microstates_per_macrostate>-1</max_microstates_per_macrostate>
+
+ <!-- LUMPING OPTIONS -->
+
+ <!-- Lag time for lumping. -->
+ <tau>1</tau>
+
+ <!-- Use initial eigenvector-derived partitioning to start MCSA run. -->
+ <use_ev_initial_lumping/>
+
+ <!-- Number of MCSA trials. -->
+ <mcsa_ntrials>10</mcsa_ntrials>
+
+ <!-- Number of MCSA steps per trial. -->
+ <mcsa_nsteps>10000</mcsa_nsteps>
+
+ <!-- Number of macrostates to lump to. -->
+ <target_nmacrostates>6</target_nmacrostates>
+
+ <!-- OPTIONS FOR WRITING STATE PDBS -->
+
+ <!-- Write split and merged state PDBs, using 30 models for each. -->
+ <write_split_pdbs nmodels="30" />
+ <write_merged_pdbs nmodels="30" />
+
+ <!-- Indices to align on (or backbone atoms if not specified. -->
+ <ls_align_atomindices>7 9 15</ls_align_atomindices>
+
+ <!-- OPTIONS FOR COMPUTING TIMESCALES -->
+
+ <!-- Specify this flag to write timescales. -->
+ <!-- <write_split_timescales/> -->
+ <!-- <write_merged_timescales/> -->
+
+ <!-- Maximum number of timescales to compute and write. -->
+ <max_ntimescales>6</max_ntimescales>	
+
+ <!-- Maximum lag time (in sampling intervals) to write timescales for. -->
+ <!-- If omitted, computed to be half the time of the longest trajectory. -->
+ <max_tau>100</max_tau>
+
+ <!-- Interval with which timescales are evaluated, from 1...max_tau by units of tau_step. -->
+ <tau_step>1</tau_step>
+
+ <!-- Time between samples, in whatever units are desired. -->
+ <tau_unit>0.1</tau_unit>
+
+ <!-- Number of bootstrap trials to use for estimating confidence bounds. -->
+ <timescales_bootstrap_ntrials>100</timescales_bootstrap_ntrials>
+
+ <!-- Confidence interval to use for estimating confidence bounds. Must be in range (0,1] -->
+ <timescales_confidence_interval>0.68</timescales_confidence_interval>
+
+</control>

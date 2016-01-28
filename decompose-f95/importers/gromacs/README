@@ -1,0 +1,4 @@
+This directory contains a C code to convert platform-independent low-precision gromacs .xtc trajectory files to AMBER format netCDF trajectory files.
+
+A Perl script is also included to use this tool to convert Folding@Home style projects utilizing gromacs into AMBER netCDF trajectories, building a trajectory-index file suitable for using 'decompose' at the same time.
+

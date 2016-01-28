@@ -1,0 +1,191 @@
+  !=============================================================================================
+  ! Test RMSD routines.
+  !=============================================================================================
+  subroutine testRmsd()
+    use kabsch_rmsd, only : ls_rmsd ! least-squared RMSD
+
+    ! Local variables.
+    integer :: i ! Loop variable
+    real(sp) :: rmsd ! rmsd between 
+
+    ! Set options.
+    option = 0
+    calc_g = .false.
+
+    do i = 1,100
+       ! Compute the rmsd between successive snapshots.
+       rmsd = ls_rmsd(numberOfAtoms, snapshots(i,:), snapshots(i+1,:))
+       
+       ! Print out the error.
+       write(*,*) rmsd
+    end do
+    
+  end subroutine testRmsd
+
+  !=============================================================================================
+  ! Align one snapshot to another using least-squares rigid-body superposition.
+  !=============================================================================================
+  subroutine alignSnapshot(snapshot, referenceSnapshot)
+    use kabsch_rmsd, only : ls_align ! LS-RMSD
+
+    ! Parameters.
+    real(sp), dimension(natoms,3) :: snapshot ! The snapshot to be aligned to the reference.
+    real(sp), dimension(natoms,3) :: referenceSnapshot ! The reference snapshot to which snapshot is to be aligned.
+    
+    ! TODO: Perform rigid-body superposition.
+    call ls_align(numberOfAtoms, snapshot, referenceSnapshot, atom_indices, bb_atomindices)
+    
+  end subroutine alignSnapshot
+  
+  !=============================================================================================
+  ! Compute distances to all generators.
+  !=============================================================================================
+  function computeDistancesToGenerators(numberOfAtoms, snapshot, numberOfGenerators, generators)
+    ! Parameters.
+    integer, intent(in) :: numberOfAtoms
+    real(sp), dimension(numberOfAtoms,3), intent(in) :: snapshot
+    integer, intent(in) :: numberOfGenerators
+    real(snapshotReal), dimension(numberOfGenerators, 3, numberOfAtoms), intent(in) :: generators
+    real(distanceReal), dimension(numberOfGenerators) :: computeDistancesToGenerators
+    
+    ! Local variables.
+    integer :: generatorIndex
+    
+    forall(generatorIndex = 1:numberOfGenerators)
+       computeDistancesToGenerators(generatorIndex) = distance(snapshot, generators(generatorIndex,:,:))
+    end forall
+    
+  end function computeDistances
+
+  !=============================================================================================
+  ! Assign snapshots to their closest generators.
+  !=============================================================================================
+  subroutine assignSnapshotsToGenerators(snapshots, generators, shapshotAssignments)
+    ! Parameters.
+    type(SnapshotType), dimension(:,:), intent(in) :: snapshots  ! The snapshots to be assigned.
+    type, dimension(:,:), intent(in) :: generators ! The generators to assign them to.
+    integer, dimension(:), intent(out) :: snapshotAssignments ! the
+    
+    ! Local variables.
+    integer :: numberOfSnapshots
+    integer :: numberOfGenerators
+    integer :: snapshotIndex
+    integer :: generatorIndex
+    real(distancePrecision) :: generatorDistance
+    real(distancePrecision) :: closestGeneratorDistance
+    integer :: closestGeneratorIndex
+
+    ! Get dimensions.
+    numberOfSnapshots = size(snapshots,1)
+    numberOfGenerators = size(generators,1)
+    
+    ! Assign each snapshot to the closest generator.
+    ! This operation can be conducted in parallel for all snapshots.
+    !$OMP PARALLEL PRIVATE(closestGeneratorIndex, closestGeneratorDistance, generatorIndex) SHARED(snapshotAssignments)
+    !$OMP DO SCHEDULE(STATIC)
+    forall(snapshotIndex = 1:numberOfSnapshots)
+       ! Determine the closest generator to this snapshot.
+       closestGeneratorIndex = 1
+       closestGeneratorDistance = distance(snapshots(snapshotIndex,:), generators(1,:))
+       do generatorIndex = 2,numberOfGenerators
+          generatorDistance = distance(snapshots(snapshotIndex,:), generators(generatorIndex,:))
+          if(generatorDistance < closestGeneratorDistance) then
+             closestGeneratorIndex = generatorIndex
+             closestGeneratorDistance = generatorDistance
+          end if
+       end do
+       ! Store closest generator to this snapshot.
+       snapshotAssignments(snapshotIndex) = closestGeneratorIndex
+       
+    end forall
+    !$OMP END DO
+    !$OMP END PARALLEL
+
+  end subroutine assignSnapshotsToGenerators
+
+
+  !=============================================================================================
+  ! Assign specified snapshots to specified generators.
+  !=============================================================================================
+  subroutine assignSnapshotsToGenerators(nindices, snapshot_indices, ngenerators, generator_indices, stateassigments)
+    
+    ! Parameters.
+    integer :: nindices
+      ! Length of snapshot_indices
+    integer, dimension(nindices), intent(in) :: snapshot_indices
+      ! The list of indices of snapshots to split.
+    integer, intent(in) :: ngenerators
+      ! The number of generators.
+    integer, dimension(states), intent(in) :: generator_indices
+      ! Snapshot indices of the generators of the convex polytopes.
+      ! NOTE that generator_indices = unique(stateassignments).
+    integer, dimension(nindices), intent(out) :: stateassigments
+      ! The state assignments (indices of generator snapshtots) for each snapshot in the list.
+
+    ! Local variables.
+    integer :: i
+    
+    ! Assign each snapshot to the closest generator.
+    do i = 1, nindices
+       ! Determine the closest generator to this snapshot.
+       stateassignments(i) = closestGenerator(snapshot_indices(i), ngenerators, generator_indices)
+    end do
+
+  end subroutine assignSnapshotsToGenerators
+
+
+  !=============================================================================================
+  ! Compute the distance between two snapshots.
+  !=============================================================================================
+  function computeDistance(snapshot_index_1, snapshot_index_2)
+
+    use kabsch_rmsd, only : ls_rmsd ! for LS-RMSD
+    
+    ! Parameters.
+    integer, intent(in) :: snapshot_index_1
+      ! Index of first snapshot.
+    integer, intent(in) :: snapshot_index_2
+      ! Index of second snapshot.
+
+    ! Return value.
+    real(sp) :: computeDistance
+      ! The RMSD between the two snapshots.
+
+    ! Compute snapshot RMSD.
+    ! TODO: Use a subset of atoms appropriate to the iteration.
+    computeDistance = ls_rmsd(snapshots(snapshot_index_1,:,:), snapshots(snapshot_index_2,:,:))
+    
+  end function computeDistance
+
+  !=============================================================================================
+  ! Determine the snapshot index of the closest generator to a given snapshot.
+  !=============================================================================================
+  function closestGenerator(snapshot_index, ngenerators, generator_indices)
+    
+    ! Parameters.
+    integer, intent(in) :: snapshot_index.
+      ! The snapshot for which the distances to generators are to be computed.
+    integer, intent(in) :: ngenerators
+      ! The number of generators.
+    integer, dimension(states), intent(in) :: generator_indices
+      ! Snapshot indices of the generators of the convex polytopes.
+
+    ! Return values.
+    integer :: closestGenerator
+      ! The snapshot index of the generator closest to snapshot snapshot_index.    
+
+    ! Local variables.
+    integer :: i
+    real(sp), dimension(ngenerators) :: generator_distances ! distances to all generators
+
+    ! Compute distances to all generators.
+    do i = 1, ngenerators
+       generator_distances(i) = computeDistance(snapshot_index, generator_indices(i))
+    end do
+
+    ! Determine the closest generator.
+    closestGenerator = generator_indices(minloc(generator_indices))
+    
+  end function closestGenerator
+  
+
