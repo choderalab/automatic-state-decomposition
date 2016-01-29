@@ -1,6 +1,6 @@
 # Implementing automatic state decomposition
 # (from Automatic discovery of metastable states for the construction of Markov
-models of macromolecular conformational dynamics
+# models of macromolecular conformational dynamics
 # Chodera, Singhal, Pande, Dill, Swope, 2007, JCP)
 # in Python
 
