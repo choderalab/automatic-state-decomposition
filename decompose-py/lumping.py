@@ -113,7 +113,7 @@ class MCSA():
          proposal = self.proposal_function(old_soln)
          f_proposal = self.objective_function(proposal)
          delta_Q = f_proposal - old_f
-         if npr.rand() < np.exp(delta_G * beta):
+         if npr.rand() < np.exp(delta_Q * beta):
             solutions.append((proposal,f_proposal))
          else:
             solutions.append((old_soln,old_f))
