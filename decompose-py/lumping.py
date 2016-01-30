@@ -108,7 +108,7 @@ class MCSA():
       solutions = [(init_solution,self.objective_function(init_solution))]
 
 
-      for beta in annealing_schedule:
+      for beta in self.annealing_schedule:
          old_soln,old_f=solutions[-1]
          proposal = self.proposal_function(old_soln)
          f_proposal = self.objective_function(proposal)
