@@ -7,10 +7,11 @@
 import numpy as np
 import numpy.random as npr
 import matplotlib.pyplot as plt
+from optimizers import MCSA
 
 # define some objective functions suggested in section III.C.2.
 
-def metastability_objective(T):
+def metastability_objective(T,**kwargs):
    '''
    metastability of each state, summed over all states
 
@@ -20,17 +21,19 @@ def metastability_objective(T):
 
    return np.trace(T)
 
-def weighted_metastability_objective(T,w):
+def weighted_metastability_objective(T,w,**kwargs):
    '''
    metastability of each state * weight of each state, summed over all states
 
    \sum_i w_i T_{i,i}
 
-   where \pi is the stationary distribution implied by T '''
+   where w is an arbitrary weight vector
+
+   '''
 
    return np.dot(np.diag(T),w)
 
-def pi_weighted_metastability_objective(T):
+def pi_weighted_metastability_objective(T,**kwargs):
    '''
    metastability of each state * its stationary probability, summed over all states
 
@@ -42,81 +45,115 @@ def pi_weighted_metastability_objective(T):
    pi = evecs[:,np.argmax(evals)]
    return weighted_metastability_objective(T,pi)
 
-def state_lifetimes(T):
+def state_lifetimes(T,**kwargs):
    ''' \tau_i = (1-T_{i,i})^{-1} '''
 
    T_ii = np.diag(T)
    return (1-T_ii)**-1
 
-def state_lifetimes_objective(T):
+def state_lifetimes_objective(T,**kwargs):
    ''' \sum_i \tau_i '''
 
    return np.sum(state_lifetimes(T))
 
 
-def count_weighted_metastability_objective(T,counts):
+def count_weighted_metastability_objective(T,counts,cg_map,**kwargs):
    '''
-   weight each macrostate's metastability by the number of observed simulation frames corresponding to that macrostate
+   weight each macrostate's metastability by the number of observed simulation
+   frames corresponding to that macrostate
 
    '''
-   raise NotImplementedError
-   #return weighted_metastability_objective(T,microstate_counts)
+   macrostate_counts = np.zeros(len(T))
+   for i in range(len(cg_map)):
+      macrostate_counts[cg_map[i]] += counts[i]
+   return weighted_metastability_objective(T,macrostate_counts)
 
-class MCSA():
+objectives = {'metastability':metastability_objective,
+              'pi_weighted_metastability':pi_weighted_metastability_objective,
+              'state_lifetimes':state_lifetimes_objective,
+              'count_weighted_metastability':count_weighted_metastability_objective}
+
+class CoarseGrain():
    def __init__(self,
-             proposal_function,
-             objective_function,
-             annealing_schedule):
-      '''
+                n_macrostates=10,
+                objective='metastability',
+                max_iter=10000):
 
-      Monte Carlo Simulated Annealing
+      self.n_macrostates=n_macrostates
+      self.objective_name = objective
+      self.objective_function = objectives[objective]
+      self.max_iter=max_iter
+
+   def proposal(self,cg_map_old):
+      '''
+      Creates a new array, with 2 elements of cg_map_old swapped at random.
 
       Parameters
       ----------
-
-      proposal_function : function
-         accepts a solution object and returns a different solution object
-
-      objective_function : function
-         accepts a solution object and returns a real number
-
-      annealing_schedule : array-like
-         inverse temperature at each step of optimization
-
-      '''
-      self.proposal_function = proposal_function
-      self.objective_function = objective_function
-      self.annealing_schedule = annealing_schedule
-
-   def maximize(self,init_solution):
-      '''
-
-      Parameters
-      ----------
-
-      init_solution : object
-         object that can be passed to proposal_function or objective_function
+      cg_map_old : array-like
+         current coarse-graining map
 
       Returns
       -------
-      solutions : list of tuples
-         each tuple contains:
-            (solution object, objective function value)
+      cg_map : numpy.ndarray
+         proposed coarse-graining map
 
       '''
 
-      solutions = [(init_solution,self.objective_function(init_solution))]
+      cg_map = np.array(cg_map_old)
+      ind1,ind2 = npr.randint(0,len(cg_map),2)
+      tmp = cg_map[ind1]
+      cg_map[ind1] = cg_map[ind2]
+      cg_map[ind2] = tmp
+      return cg_map
 
+   def cg_T(self,microstate_T,cg_map):
+      ''' Coarse-grain a microstate transition matrix by applying cg_map
 
-      for beta in self.annealing_schedule:
-         old_soln,old_f=solutions[-1]
-         proposal = self.proposal_function(old_soln)
-         f_proposal = self.objective_function(proposal)
-         delta_Q = f_proposal - old_f
-         if npr.rand() < np.exp(delta_Q * beta):
-            solutions.append((proposal,f_proposal))
-         else:
-            solutions.append((old_soln,old_f))
+      Parameters
+      ----------
+      microstate_T : array-like, square
+         microstate transition matrix
+      cg_map : array-like
+         assigns each microstate i to a macrostate cg_map[i]
 
-      return solutions
+      Returns
+      -------
+      T : numpy.ndarray, square
 
+      '''
+
+      n_macrostates = np.max(cg_map)+1
+      T = np.zeros((n_macrostates,n_macrostates))
+      n_microstates = len(microstate_T)
+      for i in range(n_microstates):
+         for j in range(n_microstates):
+            T[cg_map[i],cg_map[j]] += microstate_T[i,j]
+      return T/T.sum(0)
+
+   def fit(self,microstate_T,microstate_counts=None):
+      # if numba is installed, use JIT compilation for ~100x speed-ups
+      # of cg_T (which contains a nested for loop)
+      try:
+         from numba import jit
+         cg_T = jit(cg_T)
+      except:
+         pass
+
+      def objective(cg_map):
+         return self.objective_function(self.cg_T(initial_T,cg_map),
+                    counts=microstate_counts,cg_map=cg_map)
+
+      mcsa = MCSA(proposal_function=self.proposal,
+                  objective_function=objective,
+                  annealing_schedule=np.logspace(0,4,self.max_iter))
+
+      init_cg_map = npr.randint(0,self.n_macrostates,len(microstate_T))
+      solns = mcsa.maximize(init_cg_map)
+      self.solns = solns
+      print('Optimization complete: coarse-grained {0} = {1:.3f}'.format(
+                self.objective_name,solns[-1][1]
+                ))
+      self.cg_map = solns[-1][0]
+
+      self.optimization_trace = np.array([s[1] for s in solns])
