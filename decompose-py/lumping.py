@@ -19,7 +19,7 @@ def metastability_objective(T,**kwargs):
 
    '''
 
-   return np.trace(T)
+   return np.trace(T)/len(T)
 
 def weighted_metastability_objective(T,w,**kwargs):
    '''
@@ -145,24 +145,27 @@ class CoarseGrain():
 
       return T
 
-   def fit(self,microstate_T,microstate_counts=None):
+   def fit(self,microstate_T,microstate_pi,
+           init_cg_map=None,
+           microstate_counts=None):
       # if numba is installed, use JIT compilation for ~100x speed-ups
       # of cg_T (which contains a nested for loop)
       try:
          from numba import jit
-         cg_T = jit(cg_T)
+         self.cg_T = jit(self.cg_T)
+         print('Successfully JIT-compiled inner loop! :)')
       except:
-         pass
+         print('Did not JIT-compile inner loop :(')
 
       def objective(cg_map):
-         return self.objective_function(self.cg_T(initial_T,cg_map),
+         return self.objective_function(self.cg_T(microstate_T,microstate_pi,cg_map),
                     counts=microstate_counts,cg_map=cg_map)
 
       mcsa = MCSA(proposal_function=self.proposal,
                   objective_function=objective,
                   annealing_schedule=np.logspace(0,4,self.max_iter))
-
-      init_cg_map = npr.randint(0,self.n_macrostates,len(microstate_T))
+      if init_cg_map==None:
+         init_cg_map = npr.randint(0,self.n_macrostates,len(microstate_T))
       solns = mcsa.maximize(init_cg_map)
       self.solns = solns
       print('Optimization complete: coarse-grained {0} = {1:.3f}'.format(
