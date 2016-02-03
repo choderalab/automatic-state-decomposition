@@ -107,29 +107,43 @@ class CoarseGrain():
       cg_map[ind2] = tmp
       return cg_map
 
-   def cg_T(self,microstate_T,cg_map):
+   def cg_T(self,microstate_T,microstate_pi, cg_map):
       ''' Coarse-grain a microstate transition matrix by applying cg_map
-
       Parameters
       ----------
-      microstate_T : array-like, square
+      microstate_T : (N,N), array-like, square
          microstate transition matrix
-      cg_map : array-like
+      microstate_pi : (N,), array-like
+         microstate stationary distribution
+      cg_map : (N,), array-like
          assigns each microstate i to a macrostate cg_map[i]
 
       Returns
       -------
       T : numpy.ndarray, square
-
+         macrostate transition matrix
       '''
 
       n_macrostates = np.max(cg_map)+1
-      T = np.zeros((n_macrostates,n_macrostates))
       n_microstates = len(microstate_T)
+
+      # compute macrostate stationary distribution
+      macrostate_pi = np.zeros(n_macrostates)
+      for i in range(n_microstates):
+         macrostate_pi[cg_map[i]] += microstate_pi[i]
+      macrostate_pi /= np.sum(macrostate_pi)
+
+      # accumulate macrostate transition matrix
+      T = np.zeros((n_macrostates,n_macrostates))
       for i in range(n_microstates):
          for j in range(n_microstates):
-            T[cg_map[i],cg_map[j]] += microstate_T[i,j]
-      return T/T.sum(0)
+            T[cg_map[i],cg_map[j]] += microstate_pi[i] * microstate_T[i,j]
+
+      # normalize
+      for a in range(n_macrostates):
+         T[a] /= macrostate_pi[a]
+
+      return T
 
    def fit(self,microstate_T,microstate_counts=None):
       # if numba is installed, use JIT compilation for ~100x speed-ups
