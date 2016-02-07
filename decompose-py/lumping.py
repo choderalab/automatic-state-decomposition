@@ -41,7 +41,7 @@ def pi_weighted_metastability_objective(T,**kwargs):
 
    where \pi is the stationary distribution implied by T '''
 
-   evals,evecs = np.linalg.eigh(M)
+   evals,evecs = np.linalg.eigh(T)
    pi = evecs[:,np.argmax(evals)]
    return weighted_metastability_objective(T,pi)
 
@@ -153,9 +153,10 @@ class CoarseGrain():
       try:
          from numba import jit
          self.cg_T = jit(self.cg_T)
-         print('Successfully JIT-compiled inner loop! :)')
+        # print('Successfully JIT-compiled inner loop! :)')
       except:
-         print('Did not JIT-compile inner loop :(')
+         pass
+        # print('Did not JIT-compile inner loop :(')
 
       def objective(cg_map):
          return self.objective_function(self.cg_T(microstate_T,microstate_pi,cg_map),
@@ -163,7 +164,7 @@ class CoarseGrain():
 
       mcsa = MCSA(proposal_function=self.proposal,
                   objective_function=objective,
-                  annealing_schedule=np.logspace(0,4,self.max_iter))
+                  annealing_schedule=np.logspace(2,6,self.max_iter))
       if init_cg_map==None:
          init_cg_map = npr.randint(0,self.n_macrostates,len(microstate_T))
       solns = mcsa.maximize(init_cg_map)
