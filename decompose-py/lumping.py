@@ -19,7 +19,7 @@ def metastability_objective(T,**kwargs):
 
    '''
 
-   return np.trace(T)/len(T)
+   return np.trace(T)
 
 def weighted_metastability_objective(T,w,**kwargs):
    '''
